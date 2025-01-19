@@ -31,7 +31,7 @@ type Agent struct {
 	Desc        string  `gorm:"TYPE:varchar(1024);charset:utf8mb4;collate:utf8mb4_unicode_ci" json:"description"`
 	Prompt      string  `gorm:"TYPE:varchar(4096);charset:utf8mb4;collate:utf8mb4_unicode_ci" json:"prompt"`
 	MaxToken    uint    `gorm:"not null; default: 1024" json:"max_token"`
-	KnowledgeID uint    `gorm:"" json:"knowledge_id"`
+	KnowledgeID string  `gorm:"" json:"knowledge_id"`
 	Temperature float32 `gorm:"not null; default:0.1" json:"temperature"`
 	Faqs        string  `gorm:"TYPE:json" json:"faqs"`
 	AiType      string  `gorm:"default:openai" json:"api_type"`

@@ -29,7 +29,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		authHeader := c.GetHeader("X-token")
 
 		if len(authHeader) == 0 {
-			utils.ResponseError(c, fmt.Errorf("missing token.").Error())
+			utils.ResponseError(c, fmt.Errorf("missing token").Error())
 			c.Abort()
 			return
 		}

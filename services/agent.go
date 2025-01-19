@@ -6,20 +6,39 @@ import (
 	"agi-backend/models"
 	"agi-backend/utils"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
 
+type CreateAgentRequest struct {
+	Token string `json:"token"`
+	db.Agent
+}
+
 func CreateAgent(c *gin.Context) {
-	var agent db.Agent
-	if err := c.ShouldBindJSON(&agent); err != nil {
+	var requestInfo CreateAgentRequest
+	if err := c.ShouldBindJSON(&requestInfo); err != nil {
 		utils.ResponseError(c, err.Error())
 		return
 	}
-	if agent.Name == "" {
-		utils.ResponseError(c, "Agent name is required.")
+
+	userID := uint(0)
+
+	agentID, err := createAgent(userID, &requestInfo.Agent)
+	if err != nil {
+		utils.ResponseError(c, err.Error())
 		return
 	}
+
+	utils.ResponseSuccess(c, agentID)
+}
+
+func createAgent(userID uint, agent *db.Agent) (uint, error) {
+	if agent.Name == "" {
+		return 0, fmt.Errorf("agent name is required")
+	}
+
 	if agent.Faqs == "" {
 		emptyJSON := []uint{}
 		marshaledJSON, _ := json.Marshal(emptyJSON)
@@ -27,13 +46,12 @@ func CreateAgent(c *gin.Context) {
 	}
 
 	// 如果agent存在，则更新，否则创建agent
-	agentID, err := db.SaveAgent(&agent)
+	agentID, err := db.SaveAgent(userID, agent)
 	if err != nil {
-		utils.ResponseError(c, err.Error())
-		return
+		return agentID, err
 	}
 
-	utils.ResponseSuccess(c, agentID)
+	return agentID, nil
 }
 
 func GetAgent(c *gin.Context) {
@@ -83,23 +101,23 @@ func Faq(c *gin.Context) {
 	// 如果faqID是0，则创建一个新的对话ID
 	// 让ai根据首句生成一个摘要作为对话的标题
 	if faqRequest.FaqID == 0 {
-		abstract := ai_hub.GetAbstract(faqRequest.Message)
-		faqRequest.FaqID, conversation, err = db.NewFaq(agent, abstract, faqRequest.Message)
-		if err != nil {
-			utils.ResponseError(c, err.Error())
-			return
-		}
+		// 拼接对话
+		conversation = append(conversation, models.Conversation{
+			Role:    "system",
+			Content: agent.Prompt,
+		})
 	} else { // 根据对话ID获取聊天记录 TODO
 		conversation, err = db.GetFaq(faqRequest.FaqID)
 		if err != nil {
 			utils.ResponseError(c, err.Error())
 			return
 		}
-		conversation = append(conversation, models.Conversation{
-			Role:    "user",
-			Content: faqRequest.Message,
-		})
 	}
+
+	conversation = append(conversation, models.Conversation{
+		Role:    "user",
+		Content: faqRequest.Message,
+	})
 
 	// 获取ai的回复 TODO
 	response, err := ai.Chat(conversation, agent.ModelName, agent.MaxToken, agent.Temperature)
@@ -113,8 +131,14 @@ func Faq(c *gin.Context) {
 		Content: response,
 	})
 
-	// 保存到数据库
-	if err := db.SaveFaq(faqRequest.FaqID, conversation); err != nil {
+	if faqRequest.FaqID == 0 {
+		abstract := ai_hub.GetAbstract(faqRequest.Message)
+		if err := db.NewFaq(agent, abstract, conversation); err != nil {
+			utils.ResponseError(c, err.Error())
+			return
+
+		}
+	} else if err := db.SaveFaq(faqRequest.FaqID, conversation); err != nil {
 		utils.ResponseError(c, err.Error())
 		return
 	}

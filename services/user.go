@@ -10,10 +10,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	jwtSecret = "agi-backend-jwt-secret"
-)
-
 func Register(c *gin.Context) {
 	var userInfo db.User
 
@@ -49,6 +45,15 @@ func Register(c *gin.Context) {
 		utils.ResponseError(c, err.Error())
 		return
 	}
+
+	agent := db.Agent{
+		Name:        "聊天机器人",
+		MaxToken:    1000,
+		KnowledgeID: "[]",
+		Temperature: 0.1,
+	}
+
+	createAgent(userID, &agent)
 
 	utils.ResponseSuccess(c, userID)
 }
