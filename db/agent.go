@@ -1,9 +1,5 @@
 package db
 
-import (
-	"encoding/json"
-)
-
 func FindAgentByName(name string) int {
 	return 1
 }
@@ -17,14 +13,16 @@ func FindAgentByID(id uint) (*Agent, error) {
 	return &agent, nil
 }
 
+func FindAgentByUserID(id uint) []UserAgent {
+	var agents []UserAgent
+	// 查询 UserAgent 表中与 UserID 相关的记录
+	DB.Where("user_id = ?", id).Find(&agents)
+	return agents
+}
+
 func SaveAgent(userID uint, agent *Agent) (uint, error) {
 	user, err := FindUserByID(userID)
 	if err != nil {
-		return 0, err
-	}
-
-	var agents []uint
-	if err := json.Unmarshal([]byte(user.AgentID), &agents); err != nil {
 		return 0, err
 	}
 
@@ -33,11 +31,13 @@ func SaveAgent(userID uint, agent *Agent) (uint, error) {
 		return 0, tx.Error
 	}
 
-	agents = append(agents, agent.ID)
-	agentMashaled, _ := json.Marshal(agents)
-	user.AgentID = string(agentMashaled)
+	user_agent := UserAgent{
+		UserID:    user.ID,
+		AgentID:   agent.ID,
+		AgentName: agent.Name,
+	}
 
-	tx = DB.Save(user)
+	tx = DB.Save(user_agent)
 	if tx.Error != nil {
 		return 0, tx.Error
 	}

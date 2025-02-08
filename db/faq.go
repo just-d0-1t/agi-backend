@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 )
 
-func NewFaq(agent *Agent, abstract string, conversation []models.Conversation) error {
+func NewFaq(agent *Agent, abstract string, conversation []models.Conversation) (uint, error) {
 	conversationMarshaled, _ := json.Marshal(conversation)
 
 	faq := Faq{
-		Abstract:     abstract,
 		Conversation: string(conversationMarshaled),
 	}
 
@@ -18,24 +17,32 @@ func NewFaq(agent *Agent, abstract string, conversation []models.Conversation) e
 
 	// 4. 检查错误并获取插入的 ID
 	if tx.Error != nil {
-		return tx.Error
+		return 0, tx.Error
 	}
 
 	// 保存对话id
-	var faqs []uint
-	if err := json.Unmarshal([]byte(agent.Faqs), &faqs); err != nil {
-		return err
+	agentFaq := AgentFaq{
+		AgentID:  agent.ID,
+		FaqID:    faq.ID,
+		Abstract: abstract,
 	}
-	faqs = append(faqs, faq.ID)
-	faqsMarshaled, _ := json.Marshal(faqs)
-	agent.Faqs = string(faqsMarshaled)
 
-	tx = DB.Save(agent)
+	tx = DB.Save(&agentFaq)
 	if tx.Error != nil {
-		return tx.Error
+		return 0, tx.Error
 	}
 
-	return nil
+	return faq.ID, nil
+}
+
+func GetFaqByAgentID(agentID uint) (*[]AgentFaq, error) {
+	// 查询所有 AgentID = 1 的记录
+	var faqRecords []AgentFaq
+	tx := DB.Where("agent_id = ?", agentID).Find(&faqRecords)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	return &faqRecords, nil
 }
 
 func GetFaq(faqID uint) ([]models.Conversation, error) {

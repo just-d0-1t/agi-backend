@@ -32,7 +32,7 @@ func InitDB(dbconf *configs.DBConf) error {
 		return err
 	}
 
-	if err = DB.AutoMigrate(&User{}, &Agent{}, &Faq{}); err != nil {
+	if err = DB.AutoMigrate(&User{}, &UserAgent{}, &Agent{}, &AgentFaq{}, &Faq{}); err != nil {
 		return err
 	}
 

@@ -5,14 +5,13 @@ import (
 	"agi-backend/db"
 	"agi-backend/models"
 	"agi-backend/utils"
-	"encoding/json"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
 
 type CreateAgentRequest struct {
-	Token string `json:"token"`
+	Name string `json:"name"`
 	db.Agent
 }
 
@@ -39,12 +38,6 @@ func createAgent(userID uint, agent *db.Agent) (uint, error) {
 		return 0, fmt.Errorf("agent name is required")
 	}
 
-	if agent.Faqs == "" {
-		emptyJSON := []uint{}
-		marshaledJSON, _ := json.Marshal(emptyJSON)
-		agent.Faqs = string(marshaledJSON)
-	}
-
 	// 如果agent存在，则更新，否则创建agent
 	agentID, err := db.SaveAgent(userID, agent)
 	if err != nil {
@@ -54,27 +47,35 @@ func createAgent(userID uint, agent *db.Agent) (uint, error) {
 	return agentID, nil
 }
 
+type AgentRequest struct {
+	ID uint `json:"agent_id"`
+}
+
 func GetAgent(c *gin.Context) {
-	var AgentRequest db.Agent
-	if err := c.ShouldBindJSON(&AgentRequest); err != nil {
+	var agentRequest AgentRequest
+	if err := c.ShouldBindJSON(&agentRequest); err != nil {
 		utils.ResponseError(c, err.Error())
 		return
 	}
 
-	agent, err := db.FindAgentByID(AgentRequest.ID)
+	agent, err := db.FindAgentByID(agentRequest.ID)
 	if err != nil {
 		utils.ResponseError(c, err.Error())
 		return
 	}
 
-	agentMarshaled, _ := json.Marshal(agent)
-	utils.ResponseSuccess(c, agentMarshaled)
+	utils.ResponseSuccess(c, agent)
 }
 
 type FaqRequest struct {
 	FaqID   uint   `json:"faq_id"`
 	AgentID uint   `json:"agent_id"`
 	Message string `json:"message"`
+}
+
+type FaqResponse struct {
+	FaqID   uint   `json:"faq_id"`
+	Content string `json:"content"`
 }
 
 func Faq(c *gin.Context) {
@@ -102,10 +103,12 @@ func Faq(c *gin.Context) {
 	// 让ai根据首句生成一个摘要作为对话的标题
 	if faqRequest.FaqID == 0 {
 		// 拼接对话
-		conversation = append(conversation, models.Conversation{
-			Role:    "system",
-			Content: agent.Prompt,
-		})
+		if agent.Prompt != "" {
+			conversation = append(conversation, models.Conversation{
+				Role:    "system",
+				Content: agent.Prompt,
+			})
+		}
 	} else { // 根据对话ID获取聊天记录 TODO
 		conversation, err = db.GetFaq(faqRequest.FaqID)
 		if err != nil {
@@ -133,16 +136,22 @@ func Faq(c *gin.Context) {
 
 	if faqRequest.FaqID == 0 {
 		abstract := ai_hub.GetAbstract(faqRequest.Message)
-		if err := db.NewFaq(agent, abstract, conversation); err != nil {
+		if faqID, err := db.NewFaq(agent, abstract, conversation); err != nil {
 			utils.ResponseError(c, err.Error())
 			return
-
+		} else {
+			faqRequest.FaqID = faqID
 		}
 	} else if err := db.SaveFaq(faqRequest.FaqID, conversation); err != nil {
 		utils.ResponseError(c, err.Error())
 		return
 	}
 
+	faqRes := FaqResponse{
+		FaqID:   faqRequest.FaqID,
+		Content: response,
+	}
+
 	// 然后响应回复给客户端
-	utils.ResponseSuccess(c, response)
+	utils.ResponseSuccess(c, faqRes)
 }

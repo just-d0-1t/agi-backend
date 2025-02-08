@@ -24,6 +24,8 @@ func SetupRouter() *gin.Engine {
 	apiV1.POST("/faq", Faq)
 	apiV1.POST("/agent", CreateAgent)
 	apiV1.GET("/fetch/agent", GetAgent)
+	apiV1.GET("/fetch/faqs", GetFaqs)
+	apiV1.GET("/fetch/faq", GetFaq)
 
 	return g
 }

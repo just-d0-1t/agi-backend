@@ -4,7 +4,6 @@ import (
 	"agi-backend/db"
 	"agi-backend/services/middleware"
 	"agi-backend/utils"
-	"encoding/json"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
@@ -30,14 +29,8 @@ func Register(c *gin.Context) {
 		return
 	}
 	if userExist != nil {
-		utils.ResponseError(c, fmt.Errorf("username is conflict.").Error())
+		utils.ResponseError(c, fmt.Errorf("username is conflict").Error())
 		return
-	}
-
-	if userInfo.AgentID == "" {
-		emptyJSON := []uint{}
-		marshaledJSON, _ := json.Marshal(emptyJSON)
-		userInfo.AgentID = string(marshaledJSON)
 	}
 
 	userID, err := db.SaveUser(&userInfo)
@@ -49,13 +42,24 @@ func Register(c *gin.Context) {
 	agent := db.Agent{
 		Name:        "聊天机器人",
 		MaxToken:    1000,
-		KnowledgeID: "[]",
 		Temperature: 0.1,
 	}
 
 	createAgent(userID, &agent)
 
 	utils.ResponseSuccess(c, userID)
+}
+
+type AgentInfo struct {
+	AgentID   uint   `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+}
+
+type loginResponse struct {
+	Token    string      `json:"token"`
+	ID       uint        `json:"ID"`
+	Username string      `json:"username"`
+	Agents   []AgentInfo `json:"agents"`
 }
 
 // // 用户登陆
@@ -74,8 +78,13 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	if user == nil {
+		utils.ResponseError(c, "user is unexist")
+		return
+	}
+
 	if userInfo.Password != user.Password {
-		utils.ResponseError(c, fmt.Errorf("password is uncorrect.").Error())
+		utils.ResponseError(c, fmt.Errorf("password is uncorrect").Error())
 		return
 	}
 
@@ -85,7 +94,23 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	utils.ResponseSuccess(c, token)
+	loginRes := loginResponse{
+		Token:    token,
+		ID:       user.ID,
+		Username: user.Username,
+	}
+
+	agents := db.FindAgentByUserID(user.ID)
+
+	// 查询机器人信息
+	for _, agent := range agents {
+		loginRes.Agents = append(loginRes.Agents, AgentInfo{
+			AgentID:   agent.AgentID,
+			AgentName: agent.AgentName,
+		})
+	}
+
+	utils.ResponseSuccess(c, loginRes)
 }
 
 // // 用户权限认证
